@@ -94,6 +94,14 @@ check also refuse to run on `main`.
 Opt-in database and authenticated provider proofs require separate isolated
 fixtures; skipped proofs are not passing evidence.
 
+The worker suite also executes production workflows on Temporal's time-skipping
+test server and replays committed synthetic histories. It needs no provider,
+database or Docker. The first run downloads the test-server executable. See
+[workflow history maintenance](apps/worker/tests/fixtures/workflow-histories/README.md)
+before changing workflow code: add new histories only with a reviewed `patched()`
+change, never to hide replay incompatibility. `npm run check:sandbox-tests -w
+@space/worker` type-checks the new test harness and scenarios.
+
 In the maintainers' source repository, `npm run check:claims` compares the
 version, licence, Node requirement, runtime list and key constants stated in
 the README and `docs/` with the code, and rejects unqualified latency or

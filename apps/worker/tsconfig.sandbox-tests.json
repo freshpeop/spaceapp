@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "noEmit": true },
+  "include": ["tests/workflow-sandbox.test.ts", "tests/workflow-history-store.test.ts", "tests/support/workflow-sandbox.ts", "tests/support/workflow-history-store.ts", "tests/support/sandbox-workflows.ts"]
+}
