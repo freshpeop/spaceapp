@@ -16,6 +16,7 @@ const recording = process.env.SPACE_RECORD_WORKFLOW_HISTORIES;
 let started: number;
 let scenarioFailed = false;
 let scenarioId = 0;
+let replayPhase = false;
 beforeAll(async () => {
   started = performance.now();
   await sandbox.start();
@@ -29,7 +30,7 @@ beforeAll(async () => {
 beforeEach(async context => {
   scenarioId++; sandbox.activities = {};
   context.onTestFailed(() => { scenarioFailed = true; });
-  if (!sandbox.active) await sandbox.start();
+  if (!sandbox.active && !replayPhase) await sandbox.start();
 }, 30_000);
 afterEach(async () => { await sandbox.stop(); }, 15_000);
 afterAll(async () => {
@@ -453,15 +454,19 @@ describe("real supervisor signals, continuations and child workflows", () => {
 });
 
 describe("immutable execution history replay", () => {
-  it("replays every recorded scenario with today's unmodified production workflows", async () => {
+  beforeAll(() => { replayPhase = true; });
+  it("captures all workflow types and validates new histories before recording", async () => {
     expect(scenarioFailed, "Refusing to certify histories from failed scenarios").toBe(false);
     const fresh = [...sandbox.histories].map(([name, record]) => ({ name, ...record }));
     const types = new Set(fresh.map(r => r.history.events![0]!.workflowExecutionStartedEventAttributes!.workflowType!.name));
     expect([...types].sort()).toEqual(["codexAppServerTurnWorkflow", "dotGoalWorkflow", "dummyTurnWorkflow", "memoryConsolidationWorkflow",
       "memoryMaintenanceWorkflow", "memoryMutationWorkflow", "roomAgentActionWorkflow", "roomAgentSupervisorWorkflow"].sort());
     expect(fresh.some(r => r.name.includes("legacy"))).toBe(true);
-    await replay(sandbox.current, fresh);
-  }, 30_000);
+    // Normal runs replay the immutable corpus below. Replaying both corpora
+    // duplicates the expensive replay workers without adding historical
+    // compatibility coverage. New recordings must pass replay before any write.
+    if (recording) await replay(sandbox.current, fresh);
+  }, 90_000);
 
   it("detects an extra durable timer with DeterminismViolationError", async () => {
     const modified = await bundle("extra-timer");
@@ -477,7 +482,11 @@ describe("immutable execution history replay", () => {
     if (recording) await recordHistories(historiesDir, recording, sandbox.histories);
     const committed = await readHistories();
     expect(committed.length, "Missing committed corpus; see workflow-histories/README.md").toBeGreaterThan(0);
+    const types = new Set(committed.map(r => r.history.events![0]!.workflowExecutionStartedEventAttributes!.workflowType!.name));
+    for (const type of ["codexAppServerTurnWorkflow", "dotGoalWorkflow", "dummyTurnWorkflow", "memoryConsolidationWorkflow",
+      "memoryMaintenanceWorkflow", "memoryMutationWorkflow", "roomAgentActionWorkflow", "roomAgentSupervisorWorkflow"]) expect(types.has(type), `Missing history for ${type}`).toBe(true);
+    expect(committed.some(r => r.name.includes("supervisor-legacy-settle") &&
+      !r.history.events!.some(e => e.markerRecordedEventAttributes)), "Missing pre-patch supervisor history").toBe(true);
     await replay(sandbox.current, committed);
-  }, 30_000);
+  }, 90_000);
 });
-

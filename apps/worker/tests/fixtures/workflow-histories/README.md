@@ -7,7 +7,8 @@ workflow code may derive commands from `workflowInfo().workflowId`.
 
 `npm test -w @space/worker` runs production workflow code with stub activities,
 checks signals, cancellation, retry policies and continuations, then replays
-both the newly observed histories and **all committed versions**. A test-only
+**all committed versions**. Recording additionally replays all newly observed
+histories before writing them. A test-only
 extra timer must produce `DeterminismViolationError`. Normal tests never write
 history files and fail if the committed corpus is absent.
 
