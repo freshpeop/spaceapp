@@ -149,13 +149,17 @@ describe("real workflow sandbox", () => {
       attempts.push(Context.current().info.attempt); throw syntheticError("Synthetic transport failure");
     };
     const failed = vi.fn(); sandbox.activities.failRoomAgentBackgroundAction = failed;
-    const handle = await sandbox.startWorkflow("roomAgentActionWorkflow", {
-      bridge: { roomId: "room:proof", missionId: "mission:proof" }, traceId: "trace:proof"
-    }, queue);
+    // Old callers omitted actionId and encoded it in the workflow ID. Preserve
+    // that assertion from room-supervisor-continuation.test.ts in the sandbox.
+    const actionId = `action:synthetic-${queue}`;
+    const handle = await sandbox.env.client.workflow.start("roomAgentActionWorkflow", {
+      workflowId: `space-room-action:${actionId}`, taskQueue: queue,
+      args: [{ bridge: { roomId: "room:proof", missionId: "mission:proof" }, traceId: "trace:proof" }]
+    });
     await expect(handle.result()).rejects.toThrow();
     expect(attempts).toEqual([1, 2, 3, 4, 5]);
     if (queue === mainQueue) expect(failed).toHaveBeenCalledWith({ roomId: "room:proof", missionId: "mission:proof",
-      actionId: handle.workflowId, cancelled: false });
+      actionId, cancelled: false });
     else expect(failed).not.toHaveBeenCalled();
     await sandbox.capture(`action-${queue}`, handle);
   }, 20_000);
